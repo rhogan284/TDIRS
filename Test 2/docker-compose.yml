@@ -1,0 +1,24 @@
+services:
+  web:
+    build: ./web
+    ports:
+      - "5002:5000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/ecommerce
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ecommerce
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  log_generator:
+    build: ./log_generator
+    depends_on:
+      - web
+      - db

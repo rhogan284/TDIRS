@@ -2,7 +2,7 @@ from locust import FastHttpUser, between, task
 
 class WebsiteUser(FastHttpUser):
     wait_time = between(1, 5)
-    host = "http://localhost:5000"
+    host = "http://localhost:5001"
 
     @task(1)
     def login(self):
