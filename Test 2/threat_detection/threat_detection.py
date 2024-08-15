@@ -1,6 +1,8 @@
 import time
+from datetime import datetime
 from elasticsearch import Elasticsearch
 import logging
+from elasticsearch.exceptions import ConnectionError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,19 @@ def connect_to_elasticsearch(max_retries=5, delay=10):
 
 es = connect_to_elasticsearch()
 
+def post_warning(message):
+    doc = {
+        '@timestamp': datetime.now().isoformat(),
+        'message': message,
+        'log_type': 'threat_detection_warning'
+    }
+    try:
+        es.index(index=f"logs-{datetime.now():%Y.%m.%d}", body=doc)
+        logger.info(f"Posted warning to Elasticsearch: {message}")
+    except Exception as e:
+        logger.error(f"Failed to post warning to Elasticsearch: {e}")
+
+
 def check_for_threats():
     query = {
         "query": {
@@ -34,15 +49,24 @@ def check_for_threats():
         }
     }
 
-    result = es.search(index="logs-*", body=query)
+    try:
+        result = es.search(index="logs-*", body=query)
 
-    if result['hits']['total']['value'] > 0:
-        logger.warning(f"Detected {result['hits']['total']['value']} potential threats in the last minute!")
-        for hit in result['hits']['hits']:
-            logger.warning(f"Threat details: {hit['_source']['message']}")
+        if result['hits']['total']['value'] > 0:
+            warning_message = f"Detected {result['hits']['total']['value']} potential threats in the last minute!"
+            logger.warning(warning_message)
+            post_warning(warning_message)
+
+            for hit in result['hits']['hits']:
+                threat_detail = f"Threat details: {hit['_source']['message']}"
+                logger.warning(threat_detail)
+                post_warning(threat_detail)
+
+    except Exception as e:
+        logger.error(f"Error checking for threats: {e}")
 
 
 if __name__ == "__main__":
     while True:
         check_for_threats()
-        time.sleep(60)
+        time.sleep(30)
