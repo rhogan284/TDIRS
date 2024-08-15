@@ -68,3 +68,10 @@ services:
         condition: service_healthy
       logstash:
         condition: service_healthy
+
+  log_processor:
+    build: ./threat_detection
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command: python log_processor.py
