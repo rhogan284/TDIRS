@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   web:
     build: ./web
@@ -7,11 +9,6 @@ services:
       - db
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/ecommerce
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200k"
-        max-file: "10"
 
   db:
     image: postgres:13
@@ -21,12 +18,6 @@ services:
       - POSTGRES_DB=ecommerce
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  log_generator:
-    build: ./log_generator
-    depends_on:
-      logstash:
-        condition: service_healthy
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
@@ -44,15 +35,11 @@ services:
     image: docker.elastic.co/logstash/logstash:7.14.0
     volumes:
       - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logs:/mnt/logs
     depends_on:
       - elasticsearch
     ports:
       - "5044:5044"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9600" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.14.0
@@ -61,27 +48,16 @@ services:
     depends_on:
       - elasticsearch
 
-  threat_detection:
-    build: ./threat_detection
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-      logstash:
-        condition: service_healthy
-
-  log_processor:
-    build: ./threat_detection
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    command: python log_processor.py
-
   locust:
     image: locustio/locust
     ports:
       - "8089:8089"
     volumes:
       - ./locust_tests:/mnt/locust
-    command: -f /mnt/locust/locustfile.py --host http://web:5000
+      - ./logs:/mnt/logs
+    command: -f /mnt/locust/locustfile.py --host http://web:5000 --logfile /mnt/logs/locust.log --loglevel INFO
     depends_on:
       - web
+
+volumes:
+  logs:
