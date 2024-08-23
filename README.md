@@ -1,4 +1,4 @@
-# E-commerce Platform Simulation with ELK Stack
+# CyberSecure
 
 This project simulates an e-commerce platform with integrated logging and monitoring using the ELK (Elasticsearch, Logstash, Kibana) stack. It includes both normal user traffic simulation and potential security threat simulations.
 
