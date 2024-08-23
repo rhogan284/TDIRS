@@ -7,22 +7,17 @@ from locust import HttpUser, task, between
 from locust.contrib.fasthttp import FastHttpUser
 from datetime import datetime
 
-# Configure logging
-# Disable default logging for our custom logs
 logging.getLogger('locust.user.task').disabled = True
 logging.getLogger('locust.user.wait_time').disabled = True
 
-# Create a custom logger for our JSON logs
 json_logger = logging.getLogger('json_logger')
 json_logger.setLevel(logging.INFO)
 json_handler = logging.FileHandler('/mnt/logs/locust_json.log')
 json_handler.setFormatter(logging.Formatter('%(message)s'))
 json_logger.addHandler(json_handler)
 
-# Keep the standard Locust logger for non-JSON logs
 standard_logger = logging.getLogger('locust')
 
-# List of user agents for variety
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
@@ -31,7 +26,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
 ]
 
-# List of countries and cities for geolocation
 GEOLOCATIONS = [
     {"country": "United States", "city": "New York", "timezone": "America/New_York"},
     {"country": "United Kingdom", "city": "London", "timezone": "Europe/London"},
@@ -40,16 +34,14 @@ GEOLOCATIONS = [
     {"country": "Germany", "city": "Berlin", "timezone": "Europe/Berlin"}
 ]
 
-# List of referrers
 REFERRERS = [
     "https://www.google.com",
     "https://www.bing.com",
     "https://www.facebook.com",
     "https://www.twitter.com",
     "https://www.instagram.com",
-    None  # Direct traffic
+    None
 ]
-
 
 class WebsiteUser(FastHttpUser):
     wait_time = between(5, 15)
@@ -87,7 +79,7 @@ class WebsiteUser(FastHttpUser):
     @task(3)
     def view_product_details(self):
         self._check_and_renew_session()
-        product_id = random.randint(1, 100)  # Assuming 100 products
+        product_id = random.randint(1, 100)
         self.products_viewed.add(product_id)
         self._log_request("GET", f"/products/{product_id}", None, f"Product Detail Page (ID: {product_id})")
 
@@ -114,7 +106,7 @@ class WebsiteUser(FastHttpUser):
                 "payment_method": "credit_card",
                 "items": self.cart_items
             }, "Checkout Page")
-            self.cart_items = []  # Clear cart after checkout
+            self.cart_items = []
 
     @task(1)
     def search(self):
@@ -125,14 +117,14 @@ class WebsiteUser(FastHttpUser):
 
     def _check_and_renew_session(self):
         current_time = time.time()
-        if current_time - self.session_start_time > 1800:  # 30 minutes
+        if current_time - self.session_start_time > 1800:
             self.session_id = str(uuid.uuid4())
             self.session_start_time = current_time
 
     def _log_request(self, method, path, data, page_description):
         start_time = time.time()
         try:
-            if random.random() < 0.01:  # 1% chance of error
+            if random.random() < 0.01:
                 raise Exception("Random error occurred")
 
             if method == "GET":

@@ -57,5 +57,16 @@ services:
     depends_on:
       - web
 
+  threat-locust:
+    image: locustio/locust
+    ports:
+      - "8090:8089"
+    volumes:
+      - ./locust:/mnt/locust
+      - ./logs:/mnt/logs
+    command: -f /mnt/locust/threat_locustfile.py --host http://web:5000 --logfile /mnt/logs/threat_locust.log --loglevel INFO
+    depends_on:
+      - web
+
 volumes:
   logs:
