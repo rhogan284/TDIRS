@@ -73,5 +73,17 @@ services:
     depends_on:
       - web
 
+  threat-detector:
+    build: ./threat_detector
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    volumes:
+      - ./logs:/mnt/logs
+    restart: unless-stopped
+
 volumes:
   logs:
