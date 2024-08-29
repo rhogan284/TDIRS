@@ -45,7 +45,7 @@ class MaliciousUser(FastHttpUser):
             "' OR 1=1--",
         ]
         payload = random.choice(payloads)
-        self._log_request("GET", f"/products?id={payload}", None)
+        self._log_request("GET", f"/products?id={payload}", None, "sql_injection")
 
     @task(2)
     def xss_attempt(self):
@@ -57,7 +57,7 @@ class MaliciousUser(FastHttpUser):
             "'\"><script>alert('XSS')</script>",
         ]
         payload = random.choice(payloads)
-        self._log_request("POST", "/search", {"q": payload})
+        self._log_request("POST", "/search", {"q": payload}, "xss")
 
     @task(3)
     def brute_force_login(self):
@@ -65,7 +65,7 @@ class MaliciousUser(FastHttpUser):
         passwords = ['password', '123456', 'admin', 'qwerty', 'letmein']
         username = random.choice(usernames)
         password = random.choice(passwords)
-        self._log_request("POST", "/login", {"username": username, "password": password})
+        self._log_request("POST", "/login", {"username": username, "password": password}, "brute_force")
 
     @task(1)
     def path_traversal_attempt(self):
@@ -77,7 +77,7 @@ class MaliciousUser(FastHttpUser):
             "..%252f..%252f..%252fetc%252fpasswd",
         ]
         payload = random.choice(payloads)
-        self._log_request("GET", f"/static/{payload}", None)
+        self._log_request("GET", f"/static/{payload}", None, "path_traversal")
 
     @task(1)
     def command_injection_attempt(self):
@@ -89,16 +89,16 @@ class MaliciousUser(FastHttpUser):
             "$(echo 'vulnerable')",
         ]
         payload = random.choice(payloads)
-        self._log_request("GET", f"/exec?cmd=date{payload}", None)
+        self._log_request("GET", f"/exec?cmd=date{payload}", None, "command_injection")
 
     @task(2)
     def ddos_simulation(self):
         endpoints = ['/', '/products', '/cart', '/checkout', '/search']
         for _ in range(random.randint(5, 15)):
             endpoint = random.choice(endpoints)
-            self._log_request("GET", endpoint, None)
+            self._log_request("GET", endpoint, None, "ddos")
 
-    def _log_request(self, method, path, data):
+    def _log_request(self, method, path, data, threat_type):
         start_time = time.time()
         try:
             if method == "GET":
@@ -108,11 +108,11 @@ class MaliciousUser(FastHttpUser):
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
-            self._log_response(method, path, response, start_time, data)
+            self._log_response(method, path, response, start_time, data, threat_type)
         except Exception as e:
-            self._log_exception(method, path, e, start_time, data)
+            self._log_exception(method, path, e, start_time, data, threat_type)
 
-    def _log_response(self, method, path, response, start_time, data):
+    def _log_response(self, method, path, response, start_time, data, threat_type):
         log_entry = {
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
@@ -126,16 +126,13 @@ class MaliciousUser(FastHttpUser):
             "referer": random.choice([None, "https://www.google.com", "https://www.bing.com", "https://example.com"]),
             "request_headers": dict(response.request.headers),
             "response_headers": dict(response.headers),
-            "geo": {
-                "country": self.geolocation['country'],
-                "city": self.geolocation['city'],
-                "timezone": self.geolocation['timezone']
-            },
-            "request_body": data if data else None
+            "geo": self.geolocation,
+            "request_body": data if data else None,
+            "threat_type": threat_type  # Add the threat type tag
         }
         json_logger.info(json.dumps(log_entry))
 
-    def _log_exception(self, method, path, exception, start_time, data):
+    def _log_exception(self, method, path, exception, start_time, data, threat_type):
         log_entry = {
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
@@ -146,11 +143,8 @@ class MaliciousUser(FastHttpUser):
             "exception": str(exception),
             "user_agent": self.user_agent,
             "referer": random.choice([None, "https://www.google.com", "https://www.bing.com", "https://example.com"]),
-            "geo": {
-                "country": self.geolocation['country'],
-                "city": self.geolocation['city'],
-                "timezone": self.geolocation['timezone']
-            },
-            "request_body": data if data else None
+            "geo": self.geolocation,
+            "request_body": data if data else None,
+            "threat_type": threat_type  # Add the threat type tag
         }
         json_logger.info(json.dumps(log_entry))

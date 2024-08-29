@@ -58,5 +58,6 @@ def search():
     # Simulate search results
     return jsonify({"message": f"Search results for: {query}"})
 
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
