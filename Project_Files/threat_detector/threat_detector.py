@@ -6,6 +6,7 @@ from elasticsearch import Elasticsearch
 import time
 import os
 import logging
+import uuid
 from urllib3.exceptions import NewConnectionError
 from elasticsearch.exceptions import ConnectionError as ElasticsearchConnectionError
 
@@ -138,7 +139,6 @@ class ThreatDetector:
                         threats.add(threat_type)
                         break
 
-        # Additional checks for specific scenarios
         if method == 'POST' and '/login' in url:
             threats.add('potential_brute_force')
 
@@ -148,7 +148,6 @@ class ThreatDetector:
         # DDoS detection
         self.request_timestamps[client_ip].append(timestamp)
 
-        # Remove timestamps outside the time window
         self.request_timestamps[client_ip] = [
             ts for ts in self.request_timestamps[client_ip]
             if timestamp - ts <= timedelta(seconds=self.ddos_time_window)
@@ -162,18 +161,56 @@ class ThreatDetector:
 
         return list(threats)
 
+    def reorder_log_fields(self, log_entry):
+        field_order = [
+            "log_id",
+            "threat_type",
+            "@timestamp",
+            "client_ip",
+            "method",
+            "url",
+            "status_code",
+            "response_time_ms",
+            "bytes_sent",
+            "bytes_received",
+            "user_agent",
+            "referer",
+            "request_headers",
+            "response_headers",
+            "geo",
+            "request_body",
+            "detected_threats"
+        ]
+
+        ordered_log = {}
+        for field in field_order:
+            if field in log_entry:
+                ordered_log[field] = log_entry[field]
+            elif field == "log_id":
+                ordered_log[field] = str(uuid.uuid4())
+            elif field == "threat_type":
+                ordered_log[field] = log_entry.get("type", "unknown")
+
+        for key, value in log_entry.items():
+            if key not in ordered_log:
+                ordered_log[key] = value
+
+        return ordered_log
+
     def process_log(self, log_entry):
         threats = self.detect_threats(log_entry)
+        reordered_log = self.reorder_log_fields(log_entry)
+
         if threats:
-            log_entry['detected_threats'] = threats
-            self.es.index(index=self.threat_index, document=log_entry)
-            threat_message = f"Threat detected: {threats} in log: {log_entry.get('url', 'N/A')} from IP: {log_entry.get('client_ip', 'N/A')}"
+            reordered_log['detected_threats'] = threats
+            self.es.index(index=self.threat_index, document=reordered_log)
+            threat_message = f"Threat detected: {threats} in log: {reordered_log.get('url', 'N/A')} from IP: {reordered_log.get('client_ip', 'N/A')}"
             logger.warning(threat_message)
-            threat_logger.warning(json.dumps(log_entry))
+            threat_logger.warning(json.dumps(reordered_log))
         else:
-            self.es.index(index=self.normal_index, document=log_entry)
+            self.es.index(index=self.normal_index, document=reordered_log)
             logger.info(
-                f"Normal log processed: {log_entry.get('url', 'N/A')} from IP: {log_entry.get('client_ip', 'N/A')}")
+                f"Normal log processed: {reordered_log.get('url', 'N/A')} from IP: {reordered_log.get('client_ip', 'N/A')}")
 
     def get_new_logs(self):
         query = {

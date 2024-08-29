@@ -99,6 +99,7 @@ class MaliciousUser(FastHttpUser):
             self._log_request("GET", endpoint, None, "ddos")
 
     def _log_request(self, method, path, data, threat_type):
+        log_id = str(uuid.uuid4())
         start_time = time.time()
         try:
             if method == "GET":
@@ -108,12 +109,14 @@ class MaliciousUser(FastHttpUser):
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
-            self._log_response(method, path, response, start_time, data, threat_type)
+            self._log_response(log_id, method, path, response, start_time, data, threat_type)
         except Exception as e:
-            self._log_exception(method, path, e, start_time, data, threat_type)
+            self._log_exception(log_id, method, path, e, start_time, data, threat_type)
 
-    def _log_response(self, method, path, response, start_time, data, threat_type):
+    def _log_response(self, log_id, method, path, response, start_time, data, threat_type):
         log_entry = {
+            "log_id": log_id,
+            "threat_type": threat_type,
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
             "method": method,
@@ -128,12 +131,13 @@ class MaliciousUser(FastHttpUser):
             "response_headers": dict(response.headers),
             "geo": self.geolocation,
             "request_body": data if data else None,
-            "threat_type": threat_type  # Add the threat type tag
         }
         json_logger.info(json.dumps(log_entry))
 
-    def _log_exception(self, method, path, exception, start_time, data, threat_type):
+    def _log_exception(self, log_id, method, path, exception, start_time, data, threat_type):
         log_entry = {
+            "log_id": log_id,
+            "threat_type": threat_type,
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
             "method": method,
@@ -145,6 +149,5 @@ class MaliciousUser(FastHttpUser):
             "referer": random.choice([None, "https://www.google.com", "https://www.bing.com", "https://example.com"]),
             "geo": self.geolocation,
             "request_body": data if data else None,
-            "threat_type": threat_type  # Add the threat type tag
         }
         json_logger.info(json.dumps(log_entry))
