@@ -28,70 +28,66 @@ class ThreatDetector:
         self.connect_to_elasticsearch()
         self.detection_rules = {
             "sql_injection": [
-                r"(?i)id=\s*['\"].*?(?:--|\%27|')",  # Basic SQL injection
-                r"(?i)UNION\s+SELECT",  # UNION-based SQL injection
-                r"(?i)EXEC\s*\(",  # Execution of stored procedures
-                r"(?i)WAITFOR\s+DELAY",  # Time-based SQL injection
-                r"(?i)SELECT\s+.*?FROM",  # SELECT statements
-                r"(?i)1\s*=\s*1",  # Tautologies
-                r"(?i)DROP\s+TABLE",  # Table dropping attempts
-                r"(?i);.*?(?:SELECT|INSERT|UPDATE|DELETE|DROP)"  # Piggybacked queries
+                r"id=\s*['\"].*?(?:--|\%27|')",  # Basic SQL injection
+                r"UNION\s+SELECT",               # UNION-based SQL injection
+                r"EXEC\s*\(",                    # Execution of stored procedures
+                r"WAITFOR\s+DELAY",              # Time-based SQL injection
+                r"SELECT\s+.*?FROM",             # SELECT statements
+                r"1\s*=\s*1",                    # Tautologies
+                r"DROP\s+TABLE",                 # Table dropping attempts
+                r";.*?(?:SELECT|INSERT|UPDATE|DELETE|DROP)" # Piggybacked queries
             ],
             "xss": [
-                r"(?i)<script>",  # Basic XSS
-                r"(?i)javascript:",  # JavaScript protocol
-                r"(?i)alert\s*\(",  # Alert functions
-                r"(?i)on\w+\s*=",  # Event handlers
-                r"(?i)<svg.*?on\w+\s*=",  # SVG-based XSS
-                r"(?i)<img.*?on\w+\s*=",  # Image-based XSS
-                r"(?i)\"\s*><script>",  # Quote breaking XSS
-                r"(?i)'\s*><script>"  # Single quote breaking XSS
+                r"<script>",                     # Basic XSS
+                r"javascript:",                  # JavaScript protocol
+                r"alert\s*\(",                   # Alert functions
+                r"on\w+\s*=",                    # Event handlers
+                r"<svg.*?on\w+\s*=",             # SVG-based XSS
+                r"<img.*?on\w+\s*=",             # Image-based XSS
+                r"\"\s*><script>",               # Quote breaking XSS
+                r"'\s*><script>"                 # Single quote breaking XSS
             ],
             "path_traversal": [
-                r"(?i)\.\.\/",  # Unix-style path traversal
-                r"(?i)\.\.\\",  # Windows-style path traversal
-                r"(?i)\.\.%2f",  # URL encoded ../
-                r"(?i)\.\.%5c",  # URL encoded ..\
-                r"(?i)%2e%2e%2f",  # Double URL encoded ../
-                r"(?i)%252e%252e%252f"  # Triple URL encoded ../
-                r"(?i)\.\.(?:%2f|%5c|/|\\)",  # Mixed encoding: '..' followed by encoded or raw slash
-                r"(?i)(?:%2e|%252e){2,}(?:%2f|%5c|/|\\)"  # Multiple encoded dots followed by encoded or raw slash
+                r"\.\.\/",                       # Unix-style path traversal
+                r"\.\.\\",                       # Windows-style path traversal
+                r"\.\.%2f",                      # URL encoded ../
+                r"\.\.%5c",                      # URL encoded ..\
+                r"%2e%2e%2f",                    # Double URL encoded ../
+                r"%252e%252e%252f",              # Triple URL encoded ../
+                r"\.\.(?:%2f|%5c|/|\\)",         # Mixed encoding: '..' followed by encoded or raw slash
+                r"(?:%2e|%252e){2,}(?:%2f|%5c|/|\\)"  # Multiple encoded dots followed by encoded or raw slash
             ],
             "command_injection": [
-                r"(?i);\s*\w+",  # Command chaining with semicolon
-                r"(?i)`.*?`",  # Backtick execution
-                r"(?i)\|\s*\w+",  # Pipe to command
-                r"(?i)\$\(.*?\)",  # Command substitution
-                r"(?i)&&\s*\w+",  # Command chaining with &&
-                r"(?i)\|\|\s*\w+"  # Command chaining with ||
-            ],
-            "potential_brute_force": [
-                r"/login"  # Login attempts
+                r";\s*\w+",                      # Command chaining with semicolon
+                r"`.*?`",                        # Backtick execution
+                r"\|\s*\w+",                     # Pipe to command
+                r"\$\(.*?\)",                    # Command substitution
+                r"&&\s*\w+",                     # Command chaining with &&
+                r"\|\|\s*\w+"                    # Command chaining with ||
             ],
             "ddos": [
-                r"/"  # Homepage
-                r"/login",  # Login page
-                r"/search",  # Search functionality
-                r"/products",  # Product listing
-                r"/cart",  # Shopping cart
-                r"/checkout"  # Checkout process
+                r"/",                            # Homepage
+                r"/login",                       # Login page
+                r"/search",                      # Search functionality
+                r"/products",                    # Product listing
+                r"/cart",                        # Shopping cart
+                r"/checkout"                     # Checkout process
             ]
         }
+        self.compiled_rules = self.compile_rules()
+        self.request_timestamps = defaultdict(list)
+        self.ddos_threshold = 5
+        self.ddos_time_window = 2
         self.source_index = "locust-logs-*"
         self.threat_index = "threat-logs"
         self.normal_index = "normal-logs"
         self.last_processed_timestamp = self.get_last_processed_timestamp()
-        self.request_timestamps = defaultdict(list)
-        self.ddos_threshold = 5
-        self.ddos_time_window = 2
 
     def get_last_processed_timestamp(self):
-        # Try to read the last processed timestamp from a file
         try:
             with open('/mnt/logs/last_processed_timestamp.txt', 'r') as f:
                 return datetime.fromisoformat(f.read().strip())
         except FileNotFoundError:
-            # If the file doesn't exist, return a timestamp from 5 minutes ago
             return datetime.now(timezone.utc) - timedelta(minutes=5)
 
     def save_last_processed_timestamp(self, timestamp):
@@ -100,13 +96,13 @@ class ThreatDetector:
 
     def connect_to_elasticsearch(self):
         max_retries = 5
-        retry_delay = 10  # seconds
+        retry_delay = 10
 
         for attempt in range(max_retries):
             try:
                 self.es = Elasticsearch([
                     f"http://{os.environ.get('ELASTICSEARCH_HOST', 'elasticsearch')}:{os.environ.get('ELASTICSEARCH_PORT', '9200')}"])
-                self.es.info()  # This will raise an exception if the connection fails
+                self.es.info()
                 print("Successfully connected to Elasticsearch")
                 return
             except (NewConnectionError, ElasticsearchConnectionError) as e:
@@ -117,6 +113,12 @@ class ThreatDetector:
                 else:
                     print("Max retries reached. Unable to connect to Elasticsearch.")
                     raise
+
+    def compile_rules(self):
+        compiled_rules = {}
+        for threat_type, patterns in self.detection_rules.items():
+            compiled_rules[threat_type] = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
+        return compiled_rules
 
     def detect_threats(self, log_entry):
         threats = set()
@@ -129,21 +131,24 @@ class ThreatDetector:
 
         content_to_check = f"{url} {request_body} {headers}"
 
-        for threat_type, patterns in self.detection_rules.items():
+        for threat_type, patterns in self.compiled_rules.items():
             if threat_type != "ddos":
                 for pattern in patterns:
-                    if re.search(pattern, content_to_check, re.IGNORECASE):
+                    if pattern.search(content_to_check):
                         threats.add(threat_type)
                         break
 
+        # Additional checks for specific scenarios
         if method == 'POST' and '/login' in url:
             threats.add('potential_brute_force')
 
         if '/exec' in url and 'cmd' in url:
             threats.add('command_injection')
 
+        # DDoS detection
         self.request_timestamps[client_ip].append(timestamp)
 
+        # Remove timestamps outside the time window
         self.request_timestamps[client_ip] = [
             ts for ts in self.request_timestamps[client_ip]
             if timestamp - ts <= timedelta(seconds=self.ddos_time_window)
