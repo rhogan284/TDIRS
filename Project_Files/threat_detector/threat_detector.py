@@ -30,49 +30,49 @@ class ThreatDetector:
         self.detection_rules = {
             "sql_injection": [
                 r"id=\s*['\"].*?(?:--|\%27|')",  # Basic SQL injection
-                r"UNION\s+SELECT",               # UNION-based SQL injection
-                r"EXEC\s*\(",                    # Execution of stored procedures
-                r"WAITFOR\s+DELAY",              # Time-based SQL injection
-                r"SELECT\s+.*?FROM",             # SELECT statements
-                r"1\s*=\s*1",                    # Tautologies
-                r"DROP\s+TABLE",                 # Table dropping attempts
-                r";.*?(?:SELECT|INSERT|UPDATE|DELETE|DROP)" # Piggybacked queries
+                r"UNION\s+SELECT",  # UNION-based SQL injection
+                r"EXEC\s*\(",  # Execution of stored procedures
+                r"WAITFOR\s+DELAY",  # Time-based SQL injection
+                r"SELECT\s+.*?FROM",  # SELECT statements
+                r"1\s*=\s*1",  # Tautologies
+                r"DROP\s+TABLE",  # Table dropping attempts
+                r";.*?(?:SELECT|INSERT|UPDATE|DELETE|DROP)"  # Piggybacked queries
             ],
             "xss": [
-                r"<script>",                     # Basic XSS
-                r"javascript:",                  # JavaScript protocol
-                r"alert\s*\(",                   # Alert functions
-                r"on\w+\s*=",                    # Event handlers
-                r"<svg.*?on\w+\s*=",             # SVG-based XSS
-                r"<img.*?on\w+\s*=",             # Image-based XSS
-                r"\"\s*><script>",               # Quote breaking XSS
-                r"'\s*><script>"                 # Single quote breaking XSS
+                r"<script>",  # Basic XSS
+                r"javascript:",  # JavaScript protocol
+                r"alert\s*\(",  # Alert functions
+                r"on\w+\s*=",  # Event handlers
+                r"<svg.*?on\w+\s*=",  # SVG-based XSS
+                r"<img.*?on\w+\s*=",  # Image-based XSS
+                r"\"\s*><script>",  # Quote breaking XSS
+                r"'\s*><script>"  # Single quote breaking XSS
             ],
             "path_traversal": [
-                r"\.\.\/",                       # Unix-style path traversal
-                r"\.\.\\",                       # Windows-style path traversal
-                r"\.\.%2f",                      # URL encoded ../
-                r"\.\.%5c",                      # URL encoded ..\
-                r"%2e%2e%2f",                    # Double URL encoded ../
-                r"%252e%252e%252f",              # Triple URL encoded ../
-                r"\.\.(?:%2f|%5c|/|\\)",         # Mixed encoding: '..' followed by encoded or raw slash
+                r"\.\.\/",  # Unix-style path traversal
+                r"\.\.\\",  # Windows-style path traversal
+                r"\.\.%2f",  # URL encoded ../
+                r"\.\.%5c",  # URL encoded ..\
+                r"%2e%2e%2f",  # Double URL encoded ../
+                r"%252e%252e%252f",  # Triple URL encoded ../
+                r"\.\.(?:%2f|%5c|/|\\)",  # Mixed encoding: '..' followed by encoded or raw slash
                 r"(?:%2e|%252e){2,}(?:%2f|%5c|/|\\)"  # Multiple encoded dots followed by encoded or raw slash
             ],
             "command_injection": [
-                r";\s*\w+",                      # Command chaining with semicolon
-                r"`.*?`",                        # Backtick execution
-                r"\|\s*\w+",                     # Pipe to command
-                r"\$\(.*?\)",                    # Command substitution
-                r"&&\s*\w+",                     # Command chaining with &&
-                r"\|\|\s*\w+"                    # Command chaining with ||
+                r";\s*\w+",  # Command chaining with semicolon
+                r"`.*?`",  # Backtick execution
+                r"\|\s*\w+",  # Pipe to command
+                r"\$\(.*?\)",  # Command substitution
+                r"&&\s*\w+",  # Command chaining with &&
+                r"\|\|\s*\w+"  # Command chaining with ||
             ],
             "ddos": [
-                r"/",                            # Homepage
-                r"/login",                       # Login page
-                r"/search",                      # Search functionality
-                r"/products",                    # Product listing
-                r"/cart",                        # Shopping cart
-                r"/checkout"                     # Checkout process
+                r"/",  # Homepage
+                r"/login",  # Login page
+                r"/search",  # Search functionality
+                r"/products",  # Product listing
+                r"/cart",  # Shopping cart
+                r"/checkout"  # Checkout process
             ]
         }
         self.compiled_rules = self.compile_rules()
@@ -128,7 +128,7 @@ class ThreatDetector:
         request_body = json.dumps(log_entry.get('request_body', {}))
         headers = json.dumps(log_entry.get('request_headers', {}))
         client_ip = log_entry.get('client_ip', '')
-        timestamp = datetime.fromisoformat(log_entry.get('@timestamp').replace('Z', '+00:00'))
+        timestamp = datetime.fromisoformat(log_entry.get('@timestamp'))  # .replace('Z', '+00:00'))
 
         content_to_check = f"{url} {request_body} {headers}"
 
@@ -247,7 +247,7 @@ class ThreatDetector:
                 else:
                     logger.info("No new logs to process.")
 
-                time.sleep(30)
+                time.sleep(5)
             except Exception as e:
                 logger.error(f"An error occurred: {str(e)}")
                 logger.info("Attempting to reconnect to Elasticsearch...")
