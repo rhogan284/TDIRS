@@ -82,7 +82,7 @@ class WebsiteUser(FastHttpUser):
             "bytes_sent": len(response.request.body) if response.request.body else 0,
             "bytes_received": len(response.content),
             "user_agent": self.user_agent,
-            "referer": random.choice([None, "https://www.google.com", "https://www.bing.com", "https://example.com"]),
+            "referer": random.choice([None, "https://www.google.com", "https://www.bing.com"]),
             "request_headers": dict(response.request.headers),
             "response_headers": dict(response.headers),
             "geo": {
