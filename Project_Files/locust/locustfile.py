@@ -68,9 +68,9 @@ class WebsiteUser(FastHttpUser):
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
-            self._log_response(method, path, response, start_time, data)
+            self._log_response(log_id, method, path, response, start_time, data)
         except Exception as e:
-            self._log_exception(method, path, e, start_time, data)
+            self._log_exception(log_id, method, path, e, start_time, data)
 
     def _log_response(self, log_id, method, path, response, start_time, data):
         log_entry = {
