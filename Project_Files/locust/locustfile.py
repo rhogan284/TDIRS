@@ -20,6 +20,20 @@ class WebsiteUser(FastHttpUser):
         self.user_id = str(uuid.uuid4())
         self.session_id = str(uuid.uuid4())
         self.client_ip = f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
+        self.username = random.choice([
+            'applebee',
+            'ofgirl',
+            'bigbuffmen',
+            'alphagamer101',
+            'donaldtrump'
+        ])
+        self.password = random.choice([
+            'password', 
+            '123456', 
+            'admin', 
+            'qwerty', 
+            'letmein'
+        ])
         self.user_agent = random.choice([
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
@@ -56,6 +70,10 @@ class WebsiteUser(FastHttpUser):
     @task(1)
     def checkout(self):
         self._log_request("POST", "/checkout", {"payment_method": "credit_card"})
+
+    @task(1)
+    def login(self):
+        self._log_request("POST", "/login", {"username": self.username, "password": self.password})
 
     def _log_request(self, method, path, data):
         start_time = time.time()

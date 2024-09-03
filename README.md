@@ -44,6 +44,7 @@ This project simulates an e-commerce platform with integrated logging and monito
 3. Start the services:
    ```
    docker-compose up -d
+   docker-compose up --build
    ```
 
 4. Access the components:
