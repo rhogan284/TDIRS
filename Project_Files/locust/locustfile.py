@@ -58,6 +58,7 @@ class WebsiteUser(FastHttpUser):
         self._log_request("POST", "/checkout", {"payment_method": "credit_card"})
 
     def _log_request(self, method, path, data):
+        log_id = str(uuid.uuid4())
         start_time = time.time()
         try:
             if method == "GET":
@@ -67,12 +68,13 @@ class WebsiteUser(FastHttpUser):
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
-            self._log_response(method, path, response, start_time, data)
+            self._log_response(log_id, method, path, response, start_time, data)
         except Exception as e:
-            self._log_exception(method, path, e, start_time, data)
+            self._log_exception(log_id, method, path, e, start_time, data)
 
-    def _log_response(self, method, path, response, start_time, data):
+    def _log_response(self, log_id, method, path, response, start_time, data):
         log_entry = {
+            "log_id": log_id,
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
             "method": method,
@@ -85,17 +87,14 @@ class WebsiteUser(FastHttpUser):
             "referer": random.choice([None, "https://www.google.com", "https://www.bing.com"]),
             "request_headers": dict(response.request.headers),
             "response_headers": dict(response.headers),
-            "geo": {
-                "country": self.geolocation['country'],
-                "city": self.geolocation['city'],
-                "timezone": self.geolocation['timezone']
-            },
+            "geo": self.geolocation,
             "request_body": data if data else None
         }
         json_logger.info(json.dumps(log_entry))
 
-    def _log_exception(self, method, path, exception, start_time, data):
+    def _log_exception(self, log_id, method, path, exception, start_time, data):
         log_entry = {
+            "log_id": log_id,
             "@timestamp": datetime.utcnow().isoformat(),
             "client_ip": self.client_ip,
             "method": method,
@@ -105,11 +104,7 @@ class WebsiteUser(FastHttpUser):
             "exception": str(exception),
             "user_agent": self.user_agent,
             "referer": random.choice([None, "https://www.google.com", "https://www.bing.com", "https://example.com"]),
-            "geo": {
-                "country": self.geolocation['country'],
-                "city": self.geolocation['city'],
-                "timezone": self.geolocation['timezone']
-            },
+            "geo": self.geolocation,
             "request_body": data if data else None
         }
         json_logger.info(json.dumps(log_entry))
