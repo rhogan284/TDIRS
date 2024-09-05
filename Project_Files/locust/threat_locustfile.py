@@ -99,28 +99,29 @@ class MaliciousUser(FastHttpUser):
 
     @task(2)
     def web_scraping(self):
-        pages = ["/products", "/categories", "/reviews", "/comments"]
+        pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
         for page in pages:
             self._log_request("GET", page, None, "web_scraping")
 
     @task(2)
     def ddos_simulation(self):
 
+        randomuser = random.randint(1,2)
         for _ in range(random.randint(5, 15)):
             # Randomize user_id, session_id, client_ip, and user_agent
-            if random.randint(1,10) > 7:
+            if randomuser == 1:
                 self.randomuser()
 
-        actions = [
-            lambda: self._log_request("GET", "/", None),
-            lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None),
-            lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}),
-            lambda: self._log_request("GET", "/cart", None),
-            lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"})
-        ]
+            actions = [
+                lambda: self._log_request("GET", "/", None),
+                lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None),
+                lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}),
+                lambda: self._log_request("GET", "/cart", None),
+                lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"})
+            ]
 
-        for _ in range(random.randint(1, 20)):
-            random.choice(actions)()
+            for _ in range(random.randint(1, 20)):
+                random.choice(actions)()
 
 
 
