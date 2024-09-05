@@ -125,17 +125,15 @@ class MaliciousUser(FastHttpUser):
                 self.randomuser()
 
             actions = [
-                lambda: self._log_request("GET", "/", None),
-                lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None),
-                lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}),
-                lambda: self._log_request("GET", "/cart", None),
-                lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"})
+                lambda: self._log_request("GET", "/", None, "ddos"),
+                lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None, "ddos"),
+                lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}, "ddos"),
+                lambda: self._log_request("GET", "/cart", None, "ddos"),
+                lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"}, "ddos")
             ]
 
             for _ in range(random.randint(1, 20)):
                 random.choice(actions)()
-
-
 
     def _log_request(self, method, path, data, threat_type):
         log_id = str(uuid.uuid4())
