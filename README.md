@@ -49,6 +49,7 @@ NetGuard is a comprehensive e-commerce platform simulation with integrated loggi
 
 3. Start the services:
    ```
+   docker compose up --build
    ```
 
 4. Access the components:
