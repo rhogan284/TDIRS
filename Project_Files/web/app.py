@@ -1,10 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
 import psycopg2
 import os
 import redis
 import logging
-from functools import lru_cache
-import time
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 
@@ -39,20 +38,10 @@ def is_ip_blocked(ip):
     try:
         is_blocked = redis_client.sismember(BLOCKED_IPS_KEY, ip)
         logger.info(f"Checking if IP {ip} is blocked. Result: {is_blocked}")
-        all_members = redis_client.smembers(BLOCKED_IPS_KEY)
-        logger.info(f"All blocked IPs: {all_members}")
         return is_blocked
     except redis.exceptions.RedisError as e:
         logger.error(f"Error checking if IP is blocked: {e}")
         return False
-
-def block_ip(ip):
-    try:
-        redis_client.sadd(BLOCKED_IPS_KEY, ip)
-        redis_client.expire(BLOCKED_IPS_KEY, 3600)
-        logger.info(f"Blocked IP: {ip}")
-    except redis.exceptions.RedisError as e:
-        logger.error(f"Error blocking IP: {e}")
 
 def get_client_ip():
     x_forwarded_for = request.headers.get('X-Forwarded-For')
@@ -65,17 +54,30 @@ def get_client_ip():
 @app.before_request
 def check_if_blocked():
     client_ip = get_client_ip()
-    logger.info(f"Received request from IP: {client_ip}")
-    logger.info(f"Headers: {request.headers}")
     if is_ip_blocked(client_ip):
         logger.warning(f"Blocked request from IP: {client_ip}")
-        return jsonify({"error": "Access denied"}), 403
-    logger.info(f"Allowed request from IP: {client_ip}")
+        abort(403, description="Access denied")
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, HTTPException):
+        response = jsonify({
+            "code": e.code,
+            "name": e.name,
+            "description": e.description,
+        })
+        response.status_code = e.code
+    else:
+        response = jsonify({
+            "code": 500,
+            "name": "Internal Server Error",
+            "description": "An unexpected error occurred",
+        })
+        response.status_code = 500
+    return response
 @app.route('/')
 def hello():
     return "Welcome to the E-commerce Platform Simulation!"
-
 
 @app.route('/products')
 def get_products():

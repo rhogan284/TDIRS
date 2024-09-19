@@ -116,10 +116,15 @@ class ThreatResponder:
             logger.warning(f"No response action defined for threat type: {threat_type}")
 
     def block_ip(self, ip):
-        logger.info(f"Blocking IP: {ip}")
-        self.redis.sadd(self.BLOCKED_IPS_KEY, ip)
-        self.redis.expire(self.BLOCKED_IPS_KEY, self.config['redis']['expiration_time'])
-        logger.info(f"Blocked IP: {ip} for {self.config['redis']['expiration_time']} seconds")
+        try:
+            if not self.redis.sismember(self.BLOCKED_IPS_KEY, ip):
+                self.redis.sadd(self.BLOCKED_IPS_KEY, ip)
+                self.redis.expire(self.BLOCKED_IPS_KEY, self.config['redis']['expiration_time'])
+                logger.info(f"Blocked IP: {ip} for {self.config['redis']['expiration_time']} seconds")
+            else:
+                logger.info(f"IP: {ip} is already blocked")
+        except redis.exceptions.RedisError as e:
+            logger.error(f"Error blocking IP: {e}")
 
     def rate_limit_ip(self, ip):
         logger.info(f"Rate limiting IP: {ip}")
@@ -146,7 +151,6 @@ class ThreatResponder:
             client_ip = log_entry.get('client_ip')
             if client_ip and detected_threats:
                 self.block_ip(client_ip)
-                logger.info(f"Blocked IP {client_ip} due to threats: {', '.join(detected_threats)}")
 
         if threats:
             last_threat = threats[-1]['_source']
