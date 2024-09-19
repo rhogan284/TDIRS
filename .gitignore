@@ -1,0 +1,9 @@
+/Project_Files/logs/detected_threats.log
+/Project_Files/logs/last_processed_timestamp.txt
+/Project_Files/logs/locust.log
+/Project_Files/logs/locust_json.log
+/Project_Files/logs/threat_locust.log
+/Project_Files/logs/threat_locust_json.log
+/Project_Files/logs/threat_responder.log
+.idea
+
