@@ -115,11 +115,11 @@ class MaliciousUser(FastHttpUser):
         payload = random.choice(payloads)
         self._log_request("GET", f"/exec?cmd=date{payload}", None, "command_injection")
 
-    @task(2)
-    def web_scraping(self):
-        pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
-        for page in pages:
-            self._log_request("GET", page, None, "web_scraping")
+    # @task(2)
+    # def web_scraping(self):
+    #     pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
+    #     for page in pages:
+    #         self._log_request("GET", page, None, "web_scraping")
 
     # @task(2)
     # def ddos_simulation(self):

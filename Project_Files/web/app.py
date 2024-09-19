@@ -12,67 +12,47 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REDIS_KEY_PREFIX = os.environ.get('REDIS_KEY_PREFIX', 'threat_responder:')
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://user:password@db:5432/ecommerce')
-BLOCKED_IPS_KEY = f"{REDIS_KEY_PREFIX}blocked_ips"
+BLOCKED_IPS_KEY = "threat_responder:blocked_ips"
 
-
-# Initialize Redis client with retry logic
 def get_redis_client():
-    for _ in range(5):  # Try 5 times
-        try:
-            client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-            client.ping()  # Test the connection
-            return client
-        except redis.exceptions.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            time.sleep(5)  # Wait for 5 seconds before retrying
-    logger.error("Failed to connect to Redis after multiple attempts")
-    return None
+    try:
+        client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+        client.ping()
+        logger.info(f"Successfully connected to Redis at {REDIS_URL}")
+        logger.info(f"Using blocked IPs key: {BLOCKED_IPS_KEY}")
+        return client
+    except redis.exceptions.ConnectionError as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        return None
 
 
 redis_client = get_redis_client()
 
-
-# Initialize PostgreSQL connection with retry logic
 def get_db_connection():
-    for _ in range(5):  # Try 5 times
-        try:
-            conn = psycopg2.connect(DATABASE_URL)
-            conn.autocommit = True
-            return conn
-        except psycopg2.OperationalError as e:
-            logger.error(f"Failed to connect to PostgreSQL: {e}")
-            time.sleep(5)  # Wait for 5 seconds before retrying
-    logger.error("Failed to connect to PostgreSQL after multiple attempts")
-    return None
-
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = True
+    return conn
 
 def is_ip_blocked(ip):
-    if redis_client is None:
-        logger.error("Redis client is not available")
-        return False
     try:
         is_blocked = redis_client.sismember(BLOCKED_IPS_KEY, ip)
         logger.info(f"Checking if IP {ip} is blocked. Result: {is_blocked}")
+        all_members = redis_client.smembers(BLOCKED_IPS_KEY)
+        logger.info(f"All blocked IPs: {all_members}")
         return is_blocked
     except redis.exceptions.RedisError as e:
         logger.error(f"Error checking if IP is blocked: {e}")
         return False
 
-
 def block_ip(ip):
-    if redis_client is None:
-        logger.error("Redis client is not available")
-        return
     try:
         redis_client.sadd(BLOCKED_IPS_KEY, ip)
-        redis_client.expire(BLOCKED_IPS_KEY, 3600)  # Block for 1 hour
+        redis_client.expire(BLOCKED_IPS_KEY, 3600)
         logger.info(f"Blocked IP: {ip}")
     except redis.exceptions.RedisError as e:
         logger.error(f"Error blocking IP: {e}")
-
 
 def get_client_ip():
     x_forwarded_for = request.headers.get('X-Forwarded-For')
@@ -81,7 +61,6 @@ def get_client_ip():
     else:
         ip = request.remote_addr
     return ip
-
 
 @app.before_request
 def check_if_blocked():
@@ -93,34 +72,6 @@ def check_if_blocked():
         return jsonify({"error": "Access denied"}), 403
     logger.info(f"Allowed request from IP: {client_ip}")
 
-
-def detect_threat(request):
-    # Implement basic threat detection logic
-    path = request.path
-    args = request.args
-    body = request.get_json(silent=True)
-
-    # Check for common attack patterns
-    if any(pattern in path for pattern in ['../', '..\\', 'etc/passwd', 'win.ini']):
-        return 'path_traversal'
-    if any(pattern in str(args) for pattern in ["'", '"', ';', '--', '1=1']):
-        return 'sql_injection'
-    if body and '<script>' in str(body):
-        return 'xss'
-
-    return None
-
-
-@app.after_request
-def detect_and_block_threats(response):
-    client_ip = get_client_ip()
-    threat = detect_threat(request)
-    if threat:
-        logger.warning(f"Detected {threat} threat from IP: {client_ip}")
-        block_ip(client_ip)
-    return response
-
-
 @app.route('/')
 def hello():
     return "Welcome to the E-commerce Platform Simulation!"
@@ -131,7 +82,6 @@ def get_products():
     conn = get_db_connection()
     if conn is None:
         return jsonify({"error": "Database connection error"}), 500
-
     try:
         with conn.cursor() as cur:
             cur.execute('SELECT * FROM products;')
@@ -159,17 +109,14 @@ def get_product(product_id):
 
 @app.route('/login', methods=['POST'])
 def login():
-    # Simulate login (no actual authentication)
     return jsonify({"message": "Login simulation successful"})
 
 
 @app.route('/cart', methods=['GET', 'POST'])
 def cart():
     if request.method == 'POST':
-        # Simulate adding to cart
         return jsonify({"message": "Item added to cart"})
     else:
-        # Simulate viewing cart
         return jsonify({"message": "Cart viewed"})
 
 
@@ -181,7 +128,6 @@ def checkout():
 @app.route('/search')
 def search():
     query = request.args.get('q', '')
-    # Simulate search results
     return jsonify({"message": f"Search results for: {query}"})
 
 
