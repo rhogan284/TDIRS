@@ -81,15 +81,15 @@ class MaliciousUser(FastHttpUser):
         payload = random.choice(payloads)
         self._log_request("POST", "/search", {"q": payload}, "xss")
 
-    # @task(2)
-    # def brute_force_login(self):
-    #     usernames = ['admin', 'root', 'user', 'test', 'guest', 'applebee', 'ofgirl', 'bigbuffmen', 'alphagamer101', 'donaldtrump']
-    #     passwords = ['password', '123456', 'admin', 'qwerty', 'letmein', 'nonosquare']
-    #
-    #     for username in usernames:
-    #         for password in passwords:
-    #             self.setrandom()
-    #             self._log_request("POST", "/login", {"username": username, "password": password}, "brute_force")
+    @task(2)
+    def brute_force_login(self):
+        usernames = ['admin', 'root', 'user', 'test', 'guest', 'applebee', 'ofgirl', 'bigbuffmen', 'alphagamer101', 'donaldtrump']
+        passwords = ['password', '123456', 'admin', 'qwerty', 'letmein', 'nonosquare']
+
+        for username in usernames:
+            for password in passwords:
+                self.setrandom()
+                self._log_request("POST", "/login", {"username": username, "password": password}, "brute_force")
 
     @task(1)
     def path_traversal_attempt(self):
@@ -115,31 +115,31 @@ class MaliciousUser(FastHttpUser):
         payload = random.choice(payloads)
         self._log_request("GET", f"/exec?cmd=date{payload}", None, "command_injection")
 
-    # @task(2)
-    # def web_scraping(self):
-    #     pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
-    #     for page in pages:
-    #         self._log_request("GET", page, None, "web_scraping")
+    @task(2)
+    def web_scraping(self):
+        pages = ["/products", "/categories", "/reviews", "/comments", "/carts", '/information', '/aboutus']
+        for page in pages:
+            self._log_request("GET", page, None, "web_scraping")
 
-    # @task(2)
-    # def ddos_simulation(self):
-    #
-    #     randomuser = random.randint(1,2)
-    #     for _ in range(random.randint(5, 15)):
-    #         # Randomize user_id, session_id, client_ip, and user_agent
-    #         if randomuser == 1:
-    #             self.randomuser()
-    #
-    #         actions = [
-    #             lambda: self._log_request("GET", "/", None, "ddos"),
-    #             lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None, "ddos"),
-    #             lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}, "ddos"),
-    #             lambda: self._log_request("GET", "/cart", None, "ddos"),
-    #             lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"}, "ddos")
-    #         ]
-    #
-    #         for _ in range(random.randint(1, 20)):
-    #             random.choice(actions)()
+    @task(2)
+    def ddos_simulation(self):
+
+        randomuser = random.randint(1,2)
+        for _ in range(random.randint(5, 15)):
+            # Randomize user_id, session_id, client_ip, and user_agent
+            if randomuser == 1:
+                self.randomuser()
+
+            actions = [
+                lambda: self._log_request("GET", "/", None, "ddos"),
+                lambda: self._log_request("GET", f"/products/{random.randint(1, 10)}", None, "ddos"),
+                lambda: self._log_request("POST", "/cart", {"product_id": random.randint(1, 10), "quantity": 1}, "ddos"),
+                lambda: self._log_request("GET", "/cart", None, "ddos"),
+                lambda: self._log_request("POST", "/checkout", {"payment_method": "credit_card"}, "ddos")
+            ]
+
+            for _ in range(random.randint(1, 20)):
+                random.choice(actions)()
 
     def _log_request(self, method, path, data, threat_type):
         log_id = str(uuid.uuid4())

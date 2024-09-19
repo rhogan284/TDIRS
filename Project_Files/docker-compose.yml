@@ -116,7 +116,7 @@ services:
     volumes:
       - ./locust:/mnt/locust
       - ./logs:/mnt/logs
-    command: -f /mnt/locust/threat_locustfile.py --headless -u 30 -r 1 --run-time 1h
+    command: -f /mnt/locust/threat_locustfile.py --headless -u 10 -r 1 --run-time 1h
     environment:
       - LOCUST_HOST=http://web:5000
     depends_on:
