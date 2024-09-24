@@ -14,18 +14,13 @@ config_path = "/mnt/locust/locust_config.yaml"
 with open(config_path, "r") as config_file:
     config = yaml.safe_load(config_file)
 
-json_logger = logging.getLogger('json_logger')
-json_logger.setLevel(logging.INFO)
-json_handler = logging.FileHandler(os.path.join(config['log_dir'], 'threat_locust_json.log'))
-json_handler.setFormatter(logging.Formatter('%(message)s'))
-json_logger.addHandler(json_handler)
+logging_config_path = "/mnt/locust/logging_config.yaml"
+with open(logging_config_path, 'rt') as f:
+    logging_config = yaml.safe_load(f.read())
+    logging.config.dictConfig(logging_config)
 
-logging.basicConfig(level=logging.INFO)
-user_stats_logger = logging.getLogger('user_stats')
-file_handler = logging.FileHandler(os.path.join(config['log_dir'], 'threat_user_stats.log'))
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-user_stats_logger.addHandler(file_handler)
-user_stats_logger.propagate = False
+json_logger = logging.getLogger('json_logger')
+user_stats_logger = logging.getLogger('threat_user_stats')
 
 class DynamicMaliciousUser(HttpUser):
     wait_time = between(config['threat_users']['wait_time_min'], config['threat_users']['wait_time_max'])
@@ -300,7 +295,6 @@ class DynamicMaliciousUser(HttpUser):
         }
         json_logger.info(json.dumps(log_entry))
 
-
 class SQLInjectionUser(DynamicMaliciousUser):
     weight = 3
     tasks = [DynamicMaliciousUser.sql_injection_attempt]
@@ -356,7 +350,7 @@ def log_user_stats(environment):
             else:
                 stats[user_class.__name__]['inactive'] += 1
 
-    log_message = "User Statistics:\n"
+    log_message = "Threat User Statistics:\n"
     for user_type, counts in stats.items():
         log_message += f"{user_type}: Active: {counts['active']}, Inactive: {counts['inactive']}\n"
 
@@ -368,13 +362,13 @@ def on_locust_init(environment, **kwargs):
     if not isinstance(environment.runner, MasterRunner):
         gevent.spawn(periodic_tasks, environment)
         environment.runner.spawn_users({
-            SQLInjectionUser.__name__: 10,
-            XSSUser.__name__: 10,
-            PathTraversalUser.__name__: 5,
-            CommandInjectionUser.__name__: 5,
-            BruteForceUser.__name__: 5,
-            WebScrapingUser.__name__: 5,
-            DDOSUser.__name__: 5,
+            SQLInjectionUser.__name__: config['threat_users']['count'],
+            XSSUser.__name__: config['threat_users']['count'],
+            PathTraversalUser.__name__: config['threat_users']['count'] // 2,
+            CommandInjectionUser.__name__: config['threat_users']['count'] // 2,
+            BruteForceUser.__name__: config['threat_users']['count'] // 2,
+            WebScrapingUser.__name__: config['threat_users']['count'] // 2,
+            DDOSUser.__name__: config['threat_users']['count'] // 2,
         })
 
 

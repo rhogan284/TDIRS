@@ -14,18 +14,13 @@ config_path = "/mnt/locust/locust_config.yaml"
 with open(config_path, "r") as config_file:
     config = yaml.safe_load(config_file)
 
-json_logger = logging.getLogger('json_logger')
-json_logger.setLevel(logging.INFO)
-json_handler = logging.FileHandler(os.path.join(config['log_dir'], 'locust_json.log'))
-json_handler.setFormatter(logging.Formatter('%(message)s'))
-json_logger.addHandler(json_handler)
+logging_config_path = "/mnt/locust/logging_config.yaml"
+with open(logging_config_path, 'rt') as f:
+    logging_config = yaml.safe_load(f.read())
+    logging.config.dictConfig(logging_config)
 
-logging.basicConfig(level=logging.INFO)
-user_stats_logger = logging.getLogger('user_stats')
-file_handler = logging.FileHandler(os.path.join(config['log_dir'], 'normal_user_stats.log'))
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-user_stats_logger.addHandler(file_handler)
-user_stats_logger.propagate = False
+json_logger = logging.getLogger('json_logger')
+user_stats_logger = logging.getLogger('normal_user_stats')
 
 class DynamicWebsiteUser(FastHttpUser):
     wait_time = between(config['normal_users']['wait_time_min'], config['normal_users']['wait_time_max'])
