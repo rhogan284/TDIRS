@@ -1,0 +1,10 @@
+FROM locustio/locust
+
+# Install additional dependencies
+RUN pip install pyyaml
+
+# Copy the config file into the image
+COPY locust_config.yaml /mnt/locust/locust_config.yaml
+
+# Set the working directory
+WORKDIR /mnt/locust

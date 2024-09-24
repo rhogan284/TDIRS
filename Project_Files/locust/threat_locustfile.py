@@ -8,25 +8,29 @@ from locust import HttpUser, task, between, events
 from locust.runners import MasterRunner
 from datetime import datetime
 import gevent
+import yaml
+
+config_path = "/mnt/locust/locust_config.yaml"
+with open(config_path, "r") as config_file:
+    config = yaml.safe_load(config_file)
 
 json_logger = logging.getLogger('json_logger')
 json_logger.setLevel(logging.INFO)
-json_handler = logging.FileHandler('/mnt/logs/threat_locust_json.log')
+json_handler = logging.FileHandler(os.path.join(config['log_dir'], 'threat_locust_json.log'))
 json_handler.setFormatter(logging.Formatter('%(message)s'))
 json_logger.addHandler(json_handler)
 
 logging.basicConfig(level=logging.INFO)
 user_stats_logger = logging.getLogger('user_stats')
-file_handler = logging.FileHandler('/mnt/logs/user_stats.log')
+file_handler = logging.FileHandler(os.path.join(config['log_dir'], 'threat_user_stats.log'))
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
 user_stats_logger.addHandler(file_handler)
 user_stats_logger.propagate = False
 
-
 class DynamicMaliciousUser(HttpUser):
-    wait_time = between(1, 10)
+    wait_time = between(config['threat_users']['wait_time_min'], config['threat_users']['wait_time_max'])
     abstract = True
-    host = os.environ.get('LOCUST_HOST', 'http://web:5000')
+    host = config['host']
     instances = []
 
     def __init__(self, *args, **kwargs):
@@ -34,7 +38,7 @@ class DynamicMaliciousUser(HttpUser):
         self.__class__.instances.append(self)
         self.is_active = False
         self.last_active_time = time.time()
-        self.activation_cooldown = random.uniform(30, 300)
+        self.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'], config['lifecycle']['max_cooldown'])
         self.randomuser()
 
     def randomuser(self):
@@ -126,8 +130,9 @@ class DynamicMaliciousUser(HttpUser):
     def path_traversal_attempt(self):
         if not self.is_active:
             return
+        choice = random.randint(1, 3)
         if choice == 1:
-            retries = random.randint(1.5)
+            retries = random.randint(1, 5)
             for _ in range(retries):
                 self.randomuser()
                 payloads = [
@@ -140,7 +145,7 @@ class DynamicMaliciousUser(HttpUser):
                 payload = random.choice(payloads)
                 self._log_request("GET", f"/static/{payload}", None, "path_traversal")
         if choice == 2:
-            retries = random.randint(1.5)
+            retries = random.randint(1, 5)
             for _ in range(retries):
                 self.randomuser()
                 payloads = [
@@ -163,7 +168,7 @@ class DynamicMaliciousUser(HttpUser):
                 payload = random.choice(payloads + encoded_payloads)
                 self._log_request("GET", f"/static/{payload}", None, "path_traversal")
         if choice == 3:
-            retries = random.randint(1.5)
+            retries = random.randint(1, 5)
             for _ in range(retries):
                 depth = random.randint(1, 6)
                 traversal = "../" * depth
@@ -329,13 +334,13 @@ def manage_user_lifecycle(environment):
         for user_instance in user_class.instances:
             current_time = time.time()
             if user_instance.is_active:
-                if random.random() < 0.1:
+                if random.random() < config['lifecycle']['deactivation_chance']:
                     user_instance.is_active = False
                     user_instance.last_active_time = current_time
-                    user_instance.activation_cooldown = random.uniform(10, 30)
+                    user_instance.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'], config['lifecycle']['max_cooldown'])
                     logging.info(f"User {user_instance.user_id} deactivated")
             elif current_time - user_instance.last_active_time > user_instance.activation_cooldown:
-                if random.random() < 0.3:
+                if random.random() < config['lifecycle']['activation_chance']:
                     user_instance.is_active = True
                     user_instance.last_active_time = current_time
                     logging.info(f"User {user_instance.user_id} activated")
@@ -377,4 +382,4 @@ def periodic_tasks(environment):
     while True:
         manage_user_lifecycle(environment)
         log_user_stats(environment)
-        gevent.sleep(5)
+        gevent.sleep(config['lifecycle']['check_interval'])
