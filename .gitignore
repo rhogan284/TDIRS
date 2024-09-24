@@ -5,7 +5,8 @@
 /Project_Files/logs/threat_locust.log
 /Project_Files/logs/threat_locust_json.log
 /Project_Files/logs/threat_responder.log
-/Project_Files/logs/user_stats.log
-
+/Project_Files/logs/normal_user_stats.log
 .idea
 
+
+/Project_Files/logs/threat_user_stats.log

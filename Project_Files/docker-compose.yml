@@ -99,24 +99,30 @@ services:
     restart: unless-stopped
 
   locust:
-    image: locustio/locust
+    build:
+      context: ./locust
+      dockerfile: Dockerfile.locust
     ports:
       - "8089:8089"
     volumes:
       - ./locust:/mnt/locust
       - ./logs:/mnt/logs
-    command: -f /mnt/locust/locustfile.py --host http://web:5000 --logfile /mnt/logs/locust.log --loglevel INFO
+    command: -f /mnt/locust/locustfile.py --headless -u ${NORMAL_USERS:-10} -r ${NORMAL_SPAWN_RATE:-1} --run-time ${RUN_TIME:-1h}
+    environment:
+      - LOCUST_HOST=http://web:5000
     depends_on:
       - web
     networks:
       - app-network
 
   threat-locust:
-    image: locustio/locust
+    build:
+      context: ./locust
+      dockerfile: Dockerfile.locust
     volumes:
       - ./locust:/mnt/locust
       - ./logs:/mnt/logs
-    command: -f /mnt/locust/threat_locustfile.py --headless -u 10 -r 1 --run-time 1h
+    command: -f /mnt/locust/threat_locustfile.py --headless -u ${THREAT_USERS:-10} -r ${THREAT_SPAWN_RATE:-1} --run-time ${RUN_TIME:-1h}
     environment:
       - LOCUST_HOST=http://web:5000
     depends_on:
