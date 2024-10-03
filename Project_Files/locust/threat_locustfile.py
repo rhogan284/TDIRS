@@ -9,6 +9,7 @@ from locust.runners import MasterRunner
 from datetime import datetime
 import gevent
 import yaml
+from kafka import KafkaProducer
 
 config_path = "/mnt/locust/locust_config.yaml"
 with open(config_path, "r") as config_file:
@@ -21,6 +22,12 @@ with open(logging_config_path, 'rt') as f:
 
 json_logger = logging.getLogger('json_logger')
 user_stats_logger = logging.getLogger('threat_user_stats')
+
+# Initialize Kafka producer
+producer = KafkaProducer(
+    bootstrap_servers=['kafka:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
 
 class DynamicMaliciousUser(HttpUser):
     wait_time = between(config['threat_users']['wait_time_min'], config['threat_users']['wait_time_max'])
@@ -275,7 +282,7 @@ class DynamicMaliciousUser(HttpUser):
             "geo": self.geolocation,
             "request_body": data if data else None,
         }
-        json_logger.info(json.dumps(log_entry))
+        producer.send('threat-logs', log_entry)
 
     def _log_exception(self, log_id, method, path, exception, start_time, data, threat_type):
         log_entry = {
@@ -293,7 +300,7 @@ class DynamicMaliciousUser(HttpUser):
             "geo": self.geolocation,
             "request_body": data if data else None,
         }
-        json_logger.info(json.dumps(log_entry))
+        producer.send('threat-logs', log_entry)
 
 class SQLInjectionUser(DynamicMaliciousUser):
     weight = 3

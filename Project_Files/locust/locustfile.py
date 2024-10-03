@@ -9,6 +9,7 @@ from locust.contrib.fasthttp import FastHttpUser
 from datetime import datetime
 import gevent
 import yaml
+from kafka import KafkaProducer
 
 config_path = "/mnt/locust/locust_config.yaml"
 with open(config_path, "r") as config_file:
@@ -22,6 +23,28 @@ with open(logging_config_path, 'rt') as f:
 json_logger = logging.getLogger('json_logger')
 user_stats_logger = logging.getLogger('normal_user_stats')
 
+
+def create_kafka_producer(retries=5, delay=5):
+    for attempt in range(retries):
+        try:
+            producer = KafkaProducer(
+                bootstrap_servers=['kafka:9092'],
+                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            )
+            logging.info("Successfully connected to Kafka")
+            return producer
+        except NoBrokersAvailable:
+            if attempt < retries - 1:
+                logging.warning(f"Kafka not available, retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                logging.error("Failed to connect to Kafka after multiple attempts")
+                raise
+
+
+producer = create_kafka_producer()
+
+
 class DynamicWebsiteUser(FastHttpUser):
     wait_time = between(config['normal_users']['wait_time_min'], config['normal_users']['wait_time_max'])
     host = config['host']
@@ -32,7 +55,8 @@ class DynamicWebsiteUser(FastHttpUser):
         self.__class__.instances.append(self)
         self.is_active = False
         self.last_active_time = time.time()
-        self.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'], config['lifecycle']['max_cooldown'])
+        self.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'],
+                                                  config['lifecycle']['max_cooldown'])
         self.randomise_user()
 
     def randomise_user(self):
@@ -154,7 +178,10 @@ class DynamicWebsiteUser(FastHttpUser):
             "geo": self.geolocation,
             "request_body": data if data else None
         }
-        json_logger.info(json.dumps(log_entry))
+        try:
+            producer.send('normal-logs', log_entry)
+        except Exception as e:
+            logging.error(f"Failed to send log to Kafka: {str(e)}")
 
     def _log_exception(self, log_id, method, path, exception, start_time, data):
         log_entry = {
@@ -171,7 +198,10 @@ class DynamicWebsiteUser(FastHttpUser):
             "geo": self.geolocation,
             "request_body": data if data else None
         }
-        json_logger.info(json.dumps(log_entry))
+        try:
+            producer.send('normal-logs', log_entry)
+        except Exception as e:
+            logging.error(f"Failed to send log to Kafka: {str(e)}")
 
 
 def manage_user_lifecycle(environment):
@@ -181,7 +211,8 @@ def manage_user_lifecycle(environment):
             if random.random() < config['lifecycle']['deactivation_chance']:
                 user_instance.is_active = False
                 user_instance.last_active_time = current_time
-                user_instance.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'], config['lifecycle']['max_cooldown'])
+                user_instance.activation_cooldown = random.uniform(config['lifecycle']['min_cooldown'],
+                                                                   config['lifecycle']['max_cooldown'])
                 logging.info(f"User {user_instance.user_id} deactivated")
         elif current_time - user_instance.last_active_time > user_instance.activation_cooldown:
             if random.random() < config['lifecycle']['activation_chance']:
@@ -189,15 +220,18 @@ def manage_user_lifecycle(environment):
                 user_instance.last_active_time = current_time
                 logging.info(f"User {user_instance.user_id} activated")
 
+
 def log_user_stats(environment):
     active_users = sum(1 for user in DynamicWebsiteUser.instances if user.is_active)
     inactive_users = len(DynamicWebsiteUser.instances) - active_users
     log_message = f"Normal User Statistics: Active: {active_users}, Inactive: {inactive_users}"
     user_stats_logger.info(log_message)
 
+
 @events.init.add_listener
 def on_locust_init(environment, **kwargs):
     gevent.spawn(periodic_tasks, environment)
+
 
 def periodic_tasks(environment):
     while True:

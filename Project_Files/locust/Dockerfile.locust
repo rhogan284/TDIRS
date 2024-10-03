@@ -2,6 +2,7 @@ FROM locustio/locust
 
 # Install additional dependencies
 RUN pip install pyyaml
+RUN pip install kafka-python
 
 # Copy the config file into the image
 COPY locust_config.yaml /mnt/locust/locust_config.yaml

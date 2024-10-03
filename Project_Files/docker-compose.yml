@@ -20,6 +20,7 @@ services:
     environment:
       - discovery.type=single-node
       - logger.level=WARN
+      - xpack.security.enabled=false
     ports:
       - "9200:9200"
     networks:
@@ -30,24 +31,23 @@ services:
       timeout: 10s
       retries: 5
 
-  logstash:
-    image: docker.elastic.co/logstash/logstash:7.14.0
-    volumes:
-      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
-      - ./logstash/logstash.yaml:/usr/share/logstash/config/logstash.yaml
-      - ./logs:/mnt/logs
-    depends_on:
-      - elasticsearch
-    ports:
-      - "5044:5044"
-    networks:
-      - app-network
+#  logstash:
+#    image: docker.elastic.co/logstash/logstash:7.14.0
+#    volumes:
+#      - ./logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+#      - ./logstash/logstash.yaml:/usr/share/logstash/config/logstash.yaml
+#      - ./logs:/mnt/logs
+#    depends_on:
+#      - elasticsearch
+#    ports:
+#      - "5044:5044"
+#    networks:
+#      - app-network
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.14.0
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - LOGGING_ROOT_LEVEL=warn
     ports:
       - "5601:5601"
     depends_on:
@@ -111,7 +111,10 @@ services:
     environment:
       - LOCUST_HOST=http://web:5000
     depends_on:
-      - web
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -127,6 +130,7 @@ services:
       - LOCUST_HOST=http://web:5000
     depends_on:
       - web
+      - kibana
     networks:
       - app-network
 
@@ -146,6 +150,83 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server kafka:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - bash
+      - -c
+      - |
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic normal-logs
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic threat-logs
+    networks:
+      - app-network
+
+  flink-jobmanager:
+    build: ./flink
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+    networks:
+      - app-network
+
+  flink-taskmanager:
+    build: ./flink
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    networks:
+      - app-network
+
+  flink-submit:
+    build: ./flink
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
+      - kafka
+      - elasticsearch
+    command: flink run -d -p 2 /opt/flink/log_processor.py
+    networks:
+      - app-network
 
 networks:
   app-network:
