@@ -56,7 +56,9 @@ services:
       - app-network
 
   threat-detector:
-    build: ./threat_detector
+    build:
+      context: ./threat_detector
+      dockerfile: Dockerfile.detector
     depends_on:
       elasticsearch:
         condition: service_healthy
