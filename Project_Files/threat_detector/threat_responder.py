@@ -2,7 +2,7 @@ import json
 import logging
 import yaml
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from elasticsearch import Elasticsearch, helpers
 import redis
 import sys
@@ -22,6 +22,7 @@ class ThreatResponder:
         self.es = self.connect_to_elasticsearch()
         self.redis = self.connect_to_redis()
         self.BLOCKED_IPS_KEY = f"{self.config['redis']['key_prefix']}blocked_ips"
+        self.last_processed_timestamp = datetime.now(timezone.utc)
 
     @staticmethod
     def load_config(config_path):
@@ -45,19 +46,32 @@ class ThreatResponder:
         return redis.Redis.from_url(redis_url, decode_responses=True)
 
     def process_threats_stream(self):
-        query = {
-            "query": {
-                "match_all": {}
-            },
-            "sort": [
-                {"@timestamp": "asc"}
-            ]
-        }
+        while True:
+            query = {
+                "query": {
+                    "range": {
+                        "@timestamp": {
+                            "gt": self.last_processed_timestamp.isoformat()
+                        }
+                    }
+                },
+                "sort": [
+                    {"@timestamp": "asc"}
+                ]
+            }
 
-        logger.info("Starting threat stream processing")
-        for threat in helpers.scan(self.es, query=query, index=self.config['indices']['threat']):
-            threat_entry = threat['_source']
-            self.execute_response(threat_entry.get('detected_threats', []), threat_entry)
+            logger.info(f"Querying for threats after {self.last_processed_timestamp.isoformat()}")
+
+            for threat in helpers.scan(self.es, query=query, index=self.config['indices']['threat']):
+                threat_entry = threat['_source']
+                threat_timestamp = datetime.fromisoformat(threat_entry['@timestamp'].replace('Z', '+00:00'))
+
+                if threat_timestamp > self.last_processed_timestamp:
+                    self.execute_response(threat_entry.get('detected_threats', []), threat_entry)
+                    self.last_processed_timestamp = threat_timestamp
+
+            logger.info(f"Processed threats up to {self.last_processed_timestamp.isoformat()}")
+            time.sleep(self.config['processing']['poll_interval'])
 
     def execute_response(self, detected_threats, threat_entry):
         logger.info(f"Executing response for threats: {detected_threats}")
@@ -108,6 +122,7 @@ class ThreatResponder:
             f.write(f"{datetime.now().isoformat()},{threat_type},{ip}\n")
 
     def run(self):
+        logger.info(f"Starting threat responder. Processing threats from {self.last_processed_timestamp.isoformat()}")
         while True:
             try:
                 self.process_threats_stream()

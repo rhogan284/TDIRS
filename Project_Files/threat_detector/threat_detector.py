@@ -30,13 +30,15 @@ class ThreatDetector:
         self.es = self.connect_to_elasticsearch()
         self.compiled_rules = self.compile_rules()
         self.request_timestamps = defaultdict(lambda: deque(maxlen=self.config['ddos']['max_requests']))
+        self.last_processed_timestamp = datetime.now(timezone.utc)
 
     @staticmethod
     def load_config(config_path):
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
 
-    def connect_to_elasticsearch(self):
+    @staticmethod
+    def connect_to_elasticsearch():
         es_host = os.environ.get('ELASTICSEARCH_HOST', 'elasticsearch')
         es_port = os.environ.get('ELASTICSEARCH_PORT', '9200')
         es = Elasticsearch([f"http://{es_host}:{es_port}"])
@@ -88,22 +90,37 @@ class ThreatDetector:
         return list(threats)
 
     def process_logs_stream(self):
-        query = {
-            "query": {
-                "match_all": {}
-            },
-            "sort": [
-                {"@timestamp": "asc"}
-            ]
-        }
+        while True:
+            query = {
+                "query": {
+                    "range": {
+                        "@timestamp": {
+                            "gt": self.last_processed_timestamp.isoformat()
+                        }
+                    }
+                },
+                "sort": [
+                    {"@timestamp": "asc"}
+                ]
+            }
 
-        for log in helpers.scan(self.es, query=query, index=self.config['indices']['source']):
-            log_entry = log['_source']
-            threats = self.detect_threats(log_entry)
-            if threats:
-                self.process_threat(log_entry, threats)
-            else:
-                self.process_normal_log(log_entry)
+            logger.info(f"Querying for logs after {self.last_processed_timestamp.isoformat()}")
+
+            for log in helpers.scan(self.es, query=query, index=self.config['indices']['source']):
+                log_entry = log['_source']
+                log_timestamp = datetime.fromisoformat(log_entry['@timestamp'].replace('Z', '+00:00'))
+
+                if log_timestamp > self.last_processed_timestamp:
+                    threats = self.detect_threats(log_entry)
+                    if threats:
+                        self.process_threat(log_entry, threats)
+                    else:
+                        self.process_normal_log(log_entry)
+
+                    self.last_processed_timestamp = log_timestamp
+
+            logger.info(f"Processed logs up to {self.last_processed_timestamp.isoformat()}")
+            time.sleep(self.config['processing']['poll_interval'])
 
     def process_threat(self, log_entry, threats):
         log_entry['detected_threats'] = threats
@@ -113,6 +130,7 @@ class ThreatDetector:
         self.es.index(index=self.config['indices']['normal'], body=log_entry)
 
     def run(self):
+        logger.info(f"Starting threat detector. Processing logs from {self.last_processed_timestamp.isoformat()}")
         self.process_logs_stream()
 
 
